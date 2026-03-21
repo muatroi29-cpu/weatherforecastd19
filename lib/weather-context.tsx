@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import type { WeatherData, HourlyForecast, DailyForecast } from './types';
-import { mockWeatherData, mockHourlyForecast, mockDailyForecast, vietnamCities } from './mock-data';
+import { mockWeatherData, mockHourlyForecast, mockDailyForecast, popularLocations } from './mock-data';
 
 interface WeatherContextType {
   currentWeather: WeatherData;
@@ -23,7 +23,7 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
   const [dailyForecast, setDailyForecast] = useState<DailyForecast[]>(mockDailyForecast);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedLocation, setSelectedLocationState] = useState(vietnamCities[0]);
+  const [selectedLocation, setSelectedLocationState] = useState(popularLocations[0]);
 
   const fetchWeatherFromAPI = useCallback(async (lat: number, lon: number, locationName: string) => {
     setIsLoading(true);
