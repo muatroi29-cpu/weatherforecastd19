@@ -11,7 +11,7 @@ interface BottomNavProps {
 const tabs = [
   { id: "home", label: "Trang chủ", icon: Home },
   { id: "forecast", label: "Dự báo AI", icon: Brain },
-  { id: "heatmap", label: "Bản đồ", icon: Map },
+  { id: "heatmap", label: "AQI", icon: Map },
   { id: "alerts", label: "Cảnh báo", icon: AlertTriangle },
   { id: "settings", label: "Cài đặt", icon: Settings },
 ];

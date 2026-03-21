@@ -14,9 +14,24 @@ import {
   Sunset,
   Thermometer,
   Sun,
-  RefreshCw
+  RefreshCw,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Dữ liệu dự báo AQI cho các ngày tiếp theo
+const aqiForecast = [
+  { day: "Hôm nay", aqi: 85, trend: "stable" as const },
+  { day: "Mai", aqi: 92, trend: "up" as const },
+  { day: "T3", aqi: 78, trend: "down" as const },
+  { day: "T4", aqi: 65, trend: "down" as const },
+  { day: "T5", aqi: 70, trend: "up" as const },
+  { day: "T6", aqi: 88, trend: "up" as const },
+  { day: "T7", aqi: 95, trend: "up" as const },
+];
 
 export function HomeScreen() {
   const { currentWeather, hourlyForecast, isLoading, refreshWeather } = useWeather();
@@ -28,6 +43,30 @@ export function HomeScreen() {
     if (aqi <= 200) return "bg-red-500";
     if (aqi <= 300) return "bg-purple-500";
     return "bg-rose-900";
+  };
+
+  const getAQITextColorClass = (aqi: number) => {
+    if (aqi <= 50) return "text-green-500";
+    if (aqi <= 100) return "text-yellow-600";
+    if (aqi <= 150) return "text-orange-500";
+    if (aqi <= 200) return "text-red-500";
+    if (aqi <= 300) return "text-purple-500";
+    return "text-rose-900";
+  };
+
+  const getAQILabel = (aqi: number) => {
+    if (aqi <= 50) return "Tốt";
+    if (aqi <= 100) return "TB";
+    if (aqi <= 150) return "Kém";
+    if (aqi <= 200) return "Xấu";
+    if (aqi <= 300) return "Rất xấu";
+    return "Nguy hại";
+  };
+
+  const getTrendIcon = (trend: "up" | "down" | "stable") => {
+    if (trend === "up") return <TrendingUp size={12} className="text-red-500" />;
+    if (trend === "down") return <TrendingDown size={12} className="text-green-500" />;
+    return <Minus size={12} className="text-muted-foreground" />;
   };
 
   return (
@@ -112,6 +151,55 @@ export function HomeScreen() {
             <span>150</span>
             <span>200</span>
             <span>300+</span>
+          </div>
+        </div>
+      </WeatherCard>
+
+      {/* AQI Forecast for Upcoming Days */}
+      <WeatherCard>
+        <WeatherCardHeader title="Dự báo chất lượng không khí" icon={<Calendar size={16} />} />
+        <p className="text-sm text-muted-foreground mb-4">
+          Dự báo AQI cho 7 ngày tới tại {currentWeather.location}
+        </p>
+        <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+          {aqiForecast.map((item, index) => (
+            <div
+              key={index}
+              className={cn(
+                "flex flex-col items-center gap-2 min-w-[70px] py-3 px-3 rounded-2xl transition-colors",
+                index === 0 ? "bg-primary/10 ring-1 ring-primary/30" : "bg-muted/30"
+              )}
+            >
+              <span className="text-xs font-medium text-muted-foreground">{item.day}</span>
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm",
+                getAQIColorClass(item.aqi)
+              )}>
+                {item.aqi}
+              </div>
+              <div className="flex items-center gap-1">
+                {getTrendIcon(item.trend)}
+                <span className={cn("text-xs font-medium", getAQITextColorClass(item.aqi))}>
+                  {getAQILabel(item.aqi)}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        {/* AQI Forecast Summary */}
+        <div className="mt-4 p-3 rounded-xl bg-muted/30">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+              <Wind size={16} className="text-yellow-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Nhận xét xu hướng</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Chất lượng không khí có xu hướng cải thiện vào giữa tuần (T3-T4) với AQI dự kiến xuống mức 65-78. 
+                Cuối tuần có thể tăng nhẹ do hoạt động giao thông. Người nhạy cảm nên hạn chế ra ngoài vào T7.
+              </p>
+            </div>
           </div>
         </div>
       </WeatherCard>
