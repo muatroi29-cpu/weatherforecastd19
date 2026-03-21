@@ -3,8 +3,7 @@
 import { useWeather } from "@/lib/weather-context";
 import { WeatherCard, WeatherCardHeader } from "@/components/weather-card";
 import { WeatherIcon } from "@/components/weather-icons";
-import { Brain, TrendingUp, Droplets, ChevronRight, Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Brain, TrendingUp, Droplets, ChevronRight } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -28,11 +27,7 @@ export function ForecastScreen() {
     precipitation: hour.precipitation,
   }));
 
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 85) return "text-green-500 bg-green-500/10";
-    if (confidence >= 70) return "text-yellow-500 bg-yellow-500/10";
-    return "text-orange-500 bg-orange-500/10";
-  };
+  
 
   return (
     <div className="space-y-4 pb-24">
@@ -47,24 +42,7 @@ export function ForecastScreen() {
         </div>
       </div>
 
-      {/* AI Confidence Badge */}
-      <WeatherCard className="bg-gradient-to-r from-primary/5 to-accent/5">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-            <Sparkles className="text-primary" size={24} />
-          </div>
-          <div className="flex-1">
-            <p className="font-semibold">Độ tin cậy dự báo hôm nay</p>
-            <p className="text-sm text-muted-foreground">Dựa trên dữ liệu khí tượng thực tế</p>
-          </div>
-          <div className={cn(
-            "px-4 py-2 rounded-full font-bold",
-            getConfidenceColor(dailyForecast[0]?.confidence || 95)
-          )}>
-            {dailyForecast[0]?.confidence || 95}%
-          </div>
-        </div>
-      </WeatherCard>
+
 
       {/* 24h Temperature Chart */}
       <WeatherCard>
@@ -194,13 +172,6 @@ export function ForecastScreen() {
               <div className="flex items-center gap-2">
                 <span className="font-semibold">{day.tempMax}°</span>
                 <span className="text-muted-foreground">{day.tempMin}°</span>
-              </div>
-
-              <div className={cn(
-                "px-2 py-1 rounded-lg text-xs font-medium",
-                getConfidenceColor(day.confidence)
-              )}>
-                {day.confidence}%
               </div>
 
               <ChevronRight size={16} className="text-muted-foreground" />
