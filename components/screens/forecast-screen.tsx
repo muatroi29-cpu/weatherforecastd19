@@ -1,6 +1,7 @@
 "use client";
 
 import { useWeather } from "@/lib/weather-context";
+import { cn } from "@/lib/utils";
 import { WeatherCard, WeatherCardHeader } from "@/components/weather-card";
 import { WeatherIcon } from "@/components/weather-icons";
 import { Brain, TrendingUp, Droplets, ChevronRight } from "lucide-react";
