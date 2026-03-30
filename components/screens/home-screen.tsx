@@ -1,6 +1,7 @@
 "use client";
 
 import { useWeather } from "@/lib/weather-context";
+import { useAuth } from "@/lib/auth-context";
 import { WeatherCard, WeatherCardHeader } from "@/components/weather-card";
 import { WeatherIcon, getWeatherGradient } from "@/components/weather-icons";
 import { LocationSelector } from "@/components/location-selector";
@@ -35,6 +36,49 @@ const aqiForecast = [
 
 export function HomeScreen() {
   const { currentWeather, hourlyForecast, isLoading, refreshWeather } = useWeather();
+  const { user } = useAuth();
+
+  // Helper functions to convert units
+  const convertTemp = (celsius: number): number => {
+    if (user?.preferences.temperatureUnit === 'fahrenheit') {
+      return Math.round((celsius * 9/5) + 32);
+    }
+    return celsius;
+  };
+
+  const getWindUnitLabel = (): string => {
+    switch (user?.preferences.windSpeedUnit) {
+      case 'mph': return 'mph';
+      case 'ms': return 'm/s';
+      default: return 'km/h';
+    }
+  };
+
+  const convertWindSpeed = (kmh: number): number => {
+    switch (user?.preferences.windSpeedUnit) {
+      case 'mph': return Math.round(kmh * 0.621371);
+      case 'ms': return Math.round(kmh / 3.6);
+      default: return kmh;
+    }
+  };
+
+  const getPressureUnitLabel = (): string => {
+    if (user?.preferences.pressureUnit === 'mmhg') {
+      return 'mmHg';
+    }
+    return 'hPa';
+  };
+
+  const convertPressure = (hpa: number): string => {
+    if (user?.preferences.pressureUnit === 'mmhg') {
+      return Math.round(hpa * 0.75006).toString();
+    }
+    return hpa.toString();
+  };
+
+  const getTempUnitLabel = (): string => {
+    return user?.preferences.temperatureUnit === 'fahrenheit' ? '°F' : '°C';
+  };
 
   const getAQIColorClass = (aqi: number) => {
     if (aqi <= 50) return "bg-green-500";
@@ -96,10 +140,10 @@ export function HomeScreen() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-7xl font-light tracking-tight">
-                {currentWeather.temperature}°
+                {convertTemp(currentWeather.temperature)}{getTempUnitLabel()}
               </p>
               <p className="text-white/70 text-sm mt-1">
-                Cảm giác như {currentWeather.feelsLike}°
+                Cảm giác như {convertTemp(currentWeather.feelsLike)}{getTempUnitLabel()}
               </p>
             </div>
             <WeatherIcon 
@@ -112,11 +156,11 @@ export function HomeScreen() {
           <div className="flex items-center gap-4 mt-4 text-sm text-white/80">
             <span className="flex items-center gap-1">
               <Thermometer size={14} />
-              Cao: {currentWeather.temperature + 3}°
+              Cao: {convertTemp(currentWeather.temperature + 3)}{getTempUnitLabel()}
             </span>
             <span className="flex items-center gap-1">
               <Thermometer size={14} />
-              Thấp: {currentWeather.temperature - 5}°
+              Thấp: {convertTemp(currentWeather.temperature - 5)}{getTempUnitLabel()}
             </span>
           </div>
         </div>
@@ -218,7 +262,7 @@ export function HomeScreen() {
             >
               <span className="text-xs text-muted-foreground">{hour.time}</span>
               <WeatherIcon condition={hour.condition} size={24} />
-              <span className="font-semibold">{hour.temperature}°</span>
+              <span className="font-semibold">{convertTemp(hour.temperature)}{getTempUnitLabel()}</span>
               {hour.precipitation > 0 && (
                 <span className="text-xs text-blue-500 flex items-center gap-0.5">
                   <Droplets size={10} />
@@ -242,7 +286,7 @@ export function HomeScreen() {
 
         <WeatherCard className="flex flex-col">
           <WeatherCardHeader title="Gió" icon={<Wind size={16} />} />
-          <p className="text-3xl font-semibold">{currentWeather.windSpeed} <span className="text-lg">km/h</span></p>
+          <p className="text-3xl font-semibold">{convertWindSpeed(currentWeather.windSpeed)} <span className="text-lg">{getWindUnitLabel()}</span></p>
           <p className="text-sm text-muted-foreground mt-1">{currentWeather.windDirection}</p>
         </WeatherCard>
 
@@ -256,8 +300,8 @@ export function HomeScreen() {
 
         <WeatherCard className="flex flex-col">
           <WeatherCardHeader title="Áp suất" icon={<Gauge size={16} />} />
-          <p className="text-3xl font-semibold">{currentWeather.pressure}</p>
-          <p className="text-sm text-muted-foreground mt-1">hPa</p>
+          <p className="text-3xl font-semibold">{convertPressure(currentWeather.pressure)}</p>
+          <p className="text-sm text-muted-foreground mt-1">{getPressureUnitLabel()}</p>
         </WeatherCard>
 
         <WeatherCard className="flex flex-col">
