@@ -573,7 +573,7 @@ export function SettingsScreen({ onShowAuth }: SettingsScreenProps) {
           </div>
           <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
             <span className="text-sm">Nguồn dữ liệu</span>
-            <span className="text-sm text-muted-foreground">Open-Meteo API</span>
+            <span className="text-sm text-muted-foreground">WeatherAPI.com</span>
           </div>
           <button className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
             <div className="flex items-center gap-2">
