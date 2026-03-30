@@ -58,13 +58,13 @@ export const mockHourlyForecast: HourlyForecast[] = [
 ];
 
 export const mockDailyForecast: DailyForecast[] = [
-  { date: "21/03", dayName: "Hôm nay", tempMax: 31, tempMin: 22, condition: "partly-cloudy", humidity: 75, precipitation: 20, confidence: 95 },
-  { date: "22/03", dayName: "Chủ nhật", tempMax: 29, tempMin: 21, condition: "rainy", humidity: 85, precipitation: 65, confidence: 88 },
-  { date: "23/03", dayName: "Thứ 2", tempMax: 27, tempMin: 20, condition: "rainy", humidity: 88, precipitation: 80, confidence: 82 },
-  { date: "24/03", dayName: "Thứ 3", tempMax: 28, tempMin: 21, condition: "cloudy", humidity: 78, precipitation: 40, confidence: 75 },
-  { date: "25/03", dayName: "Thứ 4", tempMax: 30, tempMin: 22, condition: "partly-cloudy", humidity: 72, precipitation: 15, confidence: 70 },
-  { date: "26/03", dayName: "Thứ 5", tempMax: 32, tempMin: 23, condition: "sunny", humidity: 65, precipitation: 5, confidence: 65 },
-  { date: "27/03", dayName: "Thứ 6", tempMax: 33, tempMin: 24, condition: "sunny", humidity: 60, precipitation: 0, confidence: 60 },
+  { date: "21/03/2026", dayName: "Hôm nay", tempMax: 31, tempMin: 22, condition: "partly-cloudy", humidity: 75, precipitation: 20, confidence: 95 },
+  { date: "22/03/2026", dayName: "Chủ nhật", tempMax: 29, tempMin: 21, condition: "rainy", humidity: 85, precipitation: 65, confidence: 88 },
+  { date: "23/03/2026", dayName: "Thứ 2", tempMax: 27, tempMin: 19, condition: "rainy", humidity: 88, precipitation: 80, confidence: 82 },
+  { date: "24/03/2026", dayName: "Thứ 3", tempMax: 28, tempMin: 20, condition: "cloudy", humidity: 78, precipitation: 40, confidence: 75 },
+  { date: "25/03/2026", dayName: "Thứ 4", tempMax: 30, tempMin: 21, condition: "partly-cloudy", humidity: 72, precipitation: 15, confidence: 70 },
+  { date: "26/03/2026", dayName: "Thứ 5", tempMax: 32, tempMin: 23, condition: "sunny", humidity: 65, precipitation: 5, confidence: 65 },
+  { date: "27/03/2026", dayName: "Thứ 6", tempMax: 33, tempMin: 24, condition: "sunny", humidity: 60, precipitation: 0, confidence: 60 },
 ];
 
 export const mockHealthAlerts: HealthAlert[] = [

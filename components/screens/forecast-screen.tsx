@@ -56,20 +56,20 @@ export function ForecastScreen() {
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="tempGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
               <XAxis 
                 dataKey="time" 
-                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                tick={{ fontSize: 11, fill: 'hsl(var(--foreground))', opacity: 0.7 }}
                 tickLine={false}
                 axisLine={false}
                 interval={3}
               />
               <YAxis 
-                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                tick={{ fontSize: 11, fill: 'hsl(var(--foreground))', opacity: 0.7 }}
                 tickLine={false}
                 axisLine={false}
                 domain={['dataMin - 2', 'dataMax + 2']}
@@ -78,19 +78,22 @@ export function ForecastScreen() {
               <Tooltip
                 contentStyle={{
                   backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
+                  border: '2px solid #ef4444',
                   borderRadius: '12px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)'
                 }}
                 labelStyle={{ color: 'hsl(var(--foreground))' }}
                 formatter={(value: number) => [`${value}°C`, 'Nhiệt độ']}
+                contentClassName="text-sm font-medium"
               />
               <Area
                 type="monotone"
                 dataKey="temperature"
-                stroke="hsl(var(--primary))"
-                strokeWidth={2}
+                stroke="#ef4444"
+                strokeWidth={3}
                 fill="url(#tempGradient)"
+                dot={{ fill: '#ef4444', r: 4 }}
+                activeDot={{ r: 6 }}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -106,16 +109,22 @@ export function ForecastScreen() {
         <div className="h-32 mt-4">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <defs>
+                <linearGradient id="precipGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
               <XAxis 
                 dataKey="time" 
-                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                tick={{ fontSize: 11, fill: 'hsl(var(--foreground))', opacity: 0.7 }}
                 tickLine={false}
                 axisLine={false}
                 interval={3}
               />
               <YAxis 
-                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                tick={{ fontSize: 11, fill: 'hsl(var(--foreground))', opacity: 0.7 }}
                 tickLine={false}
                 axisLine={false}
                 domain={[0, 100]}
@@ -124,17 +133,22 @@ export function ForecastScreen() {
               <Tooltip
                 contentStyle={{
                   backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
+                  border: '2px solid #3b82f6',
                   borderRadius: '12px',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)'
                 }}
+                labelStyle={{ color: 'hsl(var(--foreground))' }}
                 formatter={(value: number) => [`${value}%`, 'Xác suất mưa']}
+                contentClassName="text-sm font-medium"
               />
               <Line
                 type="monotone"
                 dataKey="precipitation"
-                stroke="hsl(var(--chart-2))"
-                strokeWidth={2}
-                dot={false}
+                stroke="#3b82f6"
+                strokeWidth={3}
+                dot={{ fill: '#3b82f6', r: 4 }}
+                activeDot={{ r: 6 }}
+                isAnimationActive={true}
               />
             </LineChart>
           </ResponsiveContainer>
