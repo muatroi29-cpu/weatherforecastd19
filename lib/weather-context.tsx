@@ -29,63 +29,41 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setError(null);
 
+    const API_KEY = 'ecd27c0bc5cf4eb6a70143329263003';
+
     try {
-      // Fetch current weather and hourly forecast
-      const weatherResponse = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,surface_pressure,uv_index&hourly=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=Asia/Ho_Chi_Minh&forecast_days=7`
+      const response = await fetch(
+        `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${lat},${lon}&days=7&aqi=yes&alerts=no`
       );
 
-      // Fetch AQI data
-      const aqiResponse = await fetch(
-        `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm2_5,pm10,us_aqi`
-      );
-
-      if (!weatherResponse.ok || !aqiResponse.ok) {
+      if (!response.ok) {
         throw new Error('Không thể tải dữ liệu thời tiết');
       }
 
-      const weatherData = await weatherResponse.json();
-      const aqiData = await aqiResponse.json();
+      const data = await response.json();
 
-      // Parse weather code to condition
-      const getCondition = (code: number): WeatherData['condition'] => {
-        if (code === 0 || code === 1) return 'sunny';
-        if (code === 2) return 'partly-cloudy';
-        if (code === 3) return 'cloudy';
-        if (code >= 45 && code <= 48) return 'foggy';
-        if (code >= 51 && code <= 67) return 'rainy';
-        if (code >= 71 && code <= 77) return 'snowy';
-        if (code >= 80 && code <= 99) return 'stormy';
+      // Map WeatherAPI condition code to app condition
+      const getCondition = (code: number, isDay: number): WeatherData['condition'] => {
+        if (code === 1000) return isDay ? 'sunny' : 'partly-cloudy';
+        if (code === 1003) return 'partly-cloudy';
+        if (code === 1006 || code === 1009) return 'cloudy';
+        if (code === 1030 || code === 1135 || code === 1147) return 'foggy';
+        if ([1087, 1273, 1276, 1279, 1282].includes(code)) return 'stormy';
+        if ([1066, 1069, 1072, 1114, 1117, 1204, 1207, 1210, 1213, 1216, 1219, 1222, 1225, 1237, 1249, 1252, 1255, 1258, 1261, 1264].includes(code)) return 'snowy';
+        if ([1063, 1150, 1153, 1168, 1171, 1180, 1183, 1186, 1189, 1192, 1195, 1198, 1201, 1240, 1243, 1246].includes(code)) return 'rainy';
         return 'cloudy';
       };
 
-      const getDescription = (code: number): string => {
-        if (code === 0) return 'Trời quang đãng';
-        if (code === 1) return 'Trời hầu như quang đãng';
-        if (code === 2) return 'Có mây rải rác';
-        if (code === 3) return 'Trời âm u';
-        if (code >= 45 && code <= 48) return 'Sương mù';
-        if (code >= 51 && code <= 55) return 'Mưa phùn';
-        if (code >= 61 && code <= 65) return 'Mưa';
-        if (code >= 66 && code <= 67) return 'Mưa đóng băng';
-        if (code >= 71 && code <= 75) return 'Tuyết rơi';
-        if (code >= 80 && code <= 82) return 'Mưa rào';
-        if (code >= 95 && code <= 99) return 'Giông bão';
-        return 'Có mây';
+      const getWindDirectionVi = (dir: string): string => {
+        const map: Record<string, string> = {
+          N: 'Bắc', NNE: 'Bắc Đông Bắc', NE: 'Đông Bắc', ENE: 'Đông Đông Bắc',
+          E: 'Đông', ESE: 'Đông Đông Nam', SE: 'Đông Nam', SSE: 'Nam Đông Nam',
+          S: 'Nam', SSW: 'Nam Tây Nam', SW: 'Tây Nam', WSW: 'Tây Tây Nam',
+          W: 'Tây', WNW: 'Tây Tây Bắc', NW: 'Tây Bắc', NNW: 'Bắc Tây Bắc',
+        };
+        return map[dir] || dir;
       };
 
-      const getWindDirection = (deg: number): string => {
-        if (deg >= 337.5 || deg < 22.5) return 'Bắc';
-        if (deg >= 22.5 && deg < 67.5) return 'Đông Bắc';
-        if (deg >= 67.5 && deg < 112.5) return 'Đông';
-        if (deg >= 112.5 && deg < 157.5) return 'Đông Nam';
-        if (deg >= 157.5 && deg < 202.5) return 'Nam';
-        if (deg >= 202.5 && deg < 247.5) return 'Tây Nam';
-        if (deg >= 247.5 && deg < 292.5) return 'Tây';
-        return 'Tây Bắc';
-      };
-
-      const aqi = aqiData.current?.us_aqi || 50;
       const getAQILevel = (aqi: number): WeatherData['aqiLevel'] => {
         if (aqi <= 50) return 'good';
         if (aqi <= 100) return 'moderate';
@@ -104,55 +82,54 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
         return 'Chất lượng không khí nguy hại';
       };
 
-      const current = weatherData.current;
-      const daily = weatherData.daily;
+      const current = data.current;
+      const airQuality = current.air_quality;
+      // WeatherAPI returns us-epa-index as 1-6 category, convert to 0-300 AQI scale
+      const epaIndex = airQuality?.['us-epa-index'] ?? 1;
+      const aqiMap: Record<number, number> = { 1: 25, 2: 75, 3: 125, 4: 175, 5: 250, 6: 350 };
+      const aqiClamped = aqiMap[epaIndex] ?? 50;
 
-      // Format sunrise/sunset
-      const formatTime = (iso: string) => {
-        const date = new Date(iso);
-        return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-      };
+      const todayAstro = data.forecast.forecastday[0].astro;
 
       const newWeatherData: WeatherData = {
         location: locationName,
-        temperature: Math.round(current.temperature_2m),
-        feelsLike: Math.round(current.apparent_temperature),
-        humidity: current.relative_humidity_2m,
-        windSpeed: Math.round(current.wind_speed_10m),
-        windDirection: getWindDirection(current.wind_direction_10m),
-        pressure: Math.round(current.surface_pressure),
-        visibility: 10,
-        uvIndex: Math.round(current.uv_index || 0),
-        condition: getCondition(current.weather_code),
-        description: getDescription(current.weather_code),
-        sunrise: formatTime(daily.sunrise[0]),
-        sunset: formatTime(daily.sunset[0]),
-        aqi,
-        aqiLevel: getAQILevel(aqi),
-        aqiDescription: getAQIDescription(aqi),
+        temperature: Math.round(current.temp_c),
+        feelsLike: Math.round(current.feelslike_c),
+        humidity: current.humidity,
+        windSpeed: Math.round(current.wind_kph),
+        windDirection: getWindDirectionVi(current.wind_dir),
+        pressure: Math.round(current.pressure_mb),
+        visibility: Math.round(current.vis_km),
+        uvIndex: Math.round(current.uv),
+        condition: getCondition(current.condition.code, current.is_day),
+        description: current.condition.text,
+        sunrise: todayAstro.sunrise,
+        sunset: todayAstro.sunset,
+        aqi: aqiClamped,
+        aqiLevel: getAQILevel(aqiClamped),
+        aqiDescription: getAQIDescription(aqiClamped),
         coordinates: { lat, lon }
       };
 
-      // Parse hourly forecast
-      const hourly = weatherData.hourly;
+      // Parse hourly forecast (next 24 hours from current hour)
       const now = new Date();
       const currentHour = now.getHours();
-      
-      const newHourlyForecast: HourlyForecast[] = [];
-      for (let i = 0; i < 24; i++) {
-        const hourIndex = currentHour + i;
-        if (hourIndex < hourly.time.length) {
-          const time = i === 0 ? 'Bây giờ' : new Date(hourly.time[hourIndex]).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-          newHourlyForecast.push({
-            time,
-            temperature: Math.round(hourly.temperature_2m[hourIndex]),
-            condition: getCondition(hourly.weather_code[hourIndex]),
-            humidity: hourly.relative_humidity_2m[hourIndex],
-            windSpeed: Math.round(hourly.wind_speed_10m[hourIndex]),
-            precipitation: hourly.precipitation_probability[hourIndex] || 0
-          });
-        }
-      }
+
+      const todayHours = data.forecast.forecastday[0].hour;
+      const tomorrowHours = data.forecast.forecastday[1]?.hour || [];
+      const currentAndAfter = [
+        ...todayHours.slice(currentHour),
+        ...tomorrowHours
+      ].slice(0, 24);
+
+      const newHourlyForecast: HourlyForecast[] = currentAndAfter.map((hour: any, i: number) => ({
+        time: i === 0 ? 'Bây giờ' : new Date(hour.time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+        temperature: Math.round(hour.temp_c),
+        condition: getCondition(hour.condition.code, hour.is_day),
+        humidity: hour.humidity,
+        windSpeed: Math.round(hour.wind_kph),
+        precipitation: hour.chance_of_rain,
+      }));
 
       // Parse daily forecast
       const getDayName = (index: number): string => {
@@ -162,15 +139,15 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
         return date.toLocaleDateString('vi-VN', { weekday: 'long' });
       };
 
-      const newDailyForecast: DailyForecast[] = daily.time.map((time: string, index: number) => ({
-        date: new Date(time).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
+      const newDailyForecast: DailyForecast[] = data.forecast.forecastday.map((day: any, index: number) => ({
+        date: new Date(day.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
         dayName: getDayName(index),
-        tempMax: Math.round(daily.temperature_2m_max[index]),
-        tempMin: Math.round(daily.temperature_2m_min[index]),
-        condition: getCondition(daily.weather_code[index]),
-        humidity: 70,
-        precipitation: daily.precipitation_probability_max[index] || 0,
-        confidence: Math.max(60, 100 - index * 5)
+        tempMax: Math.round(day.day.maxtemp_c),
+        tempMin: Math.round(day.day.mintemp_c),
+        condition: getCondition(day.day.condition.code, 1),
+        humidity: day.day.avghumidity,
+        precipitation: day.day.daily_chance_of_rain,
+        confidence: Math.max(60, 100 - index * 5),
       }));
 
       setCurrentWeather(newWeatherData);
@@ -179,7 +156,6 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('Error fetching weather:', err);
       setError('Không thể tải dữ liệu thời tiết. Sử dụng dữ liệu mẫu.');
-      // Fall back to mock data
       setCurrentWeather({ ...mockWeatherData, location: locationName });
     } finally {
       setIsLoading(false);
