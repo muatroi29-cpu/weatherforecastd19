@@ -138,8 +138,10 @@ export function SettingsScreen({ onShowAuth }: SettingsScreenProps) {
   const { user, logout, updatePreferences } = useAuth();
   const [tempUnit, setTempUnit] = useState(user?.preferences.temperatureUnit || "celsius");
   const [windUnit, setWindUnit] = useState(user?.preferences.windSpeedUnit || "kmh");
-  const [pressureUnit, setPressureUnit] = useState<"hpa" | "mmhg">("hpa");
-  const [notifications, setNotifications] = useState(user?.preferences.notifications ?? true);
+  const [pressureUnit, setPressureUnit] = useState(user?.preferences.pressureUnit || "hpa");
+  const [notificationsWeather, setNotificationsWeather] = useState(user?.preferences.notifications.weather ?? true);
+  const [notificationsAqi, setNotificationsAqi] = useState(user?.preferences.notifications.aqi ?? true);
+  const [notificationsDailyForecast, setNotificationsDailyForecast] = useState(user?.preferences.notifications.dailyForecast ?? true);
   const [selectedArticle, setSelectedArticle] = useState<ScienceKey | null>(null);
 
   const handleTempUnitChange = (unit: "celsius" | "fahrenheit") => {
@@ -156,10 +158,49 @@ export function SettingsScreen({ onShowAuth }: SettingsScreenProps) {
     }
   };
 
-  const handleNotificationsChange = (enabled: boolean) => {
-    setNotifications(enabled);
+  const handlePressureUnitChange = (unit: "hpa" | "mmhg") => {
+    setPressureUnit(unit);
     if (user) {
-      updatePreferences({ notifications: enabled });
+      updatePreferences({ pressureUnit: unit });
+    }
+  };
+
+  const handleWeatherNotificationChange = (enabled: boolean) => {
+    setNotificationsWeather(enabled);
+    if (user) {
+      updatePreferences({ 
+        notifications: { 
+          weather: enabled, 
+          aqi: notificationsAqi, 
+          dailyForecast: notificationsDailyForecast 
+        } 
+      });
+    }
+  };
+
+  const handleAqiNotificationChange = (enabled: boolean) => {
+    setNotificationsAqi(enabled);
+    if (user) {
+      updatePreferences({ 
+        notifications: { 
+          weather: notificationsWeather, 
+          aqi: enabled, 
+          dailyForecast: notificationsDailyForecast 
+        } 
+      });
+    }
+  };
+
+  const handleDailyForecastNotificationChange = (enabled: boolean) => {
+    setNotificationsDailyForecast(enabled);
+    if (user) {
+      updatePreferences({ 
+        notifications: { 
+          weather: notificationsWeather, 
+          aqi: notificationsAqi, 
+          dailyForecast: enabled 
+        } 
+      });
     }
   };
 
@@ -404,7 +445,7 @@ export function SettingsScreen({ onShowAuth }: SettingsScreenProps) {
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => setPressureUnit("hpa")}
+                onClick={() => handlePressureUnitChange("hpa")}
                 className={cn(
                   "flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all",
                   pressureUnit === "hpa"
@@ -415,7 +456,7 @@ export function SettingsScreen({ onShowAuth }: SettingsScreenProps) {
                 hPa
               </button>
               <button
-                onClick={() => setPressureUnit("mmhg")}
+                onClick={() => handlePressureUnitChange("mmhg")}
                 className={cn(
                   "flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all",
                   pressureUnit === "mmhg"
@@ -440,8 +481,8 @@ export function SettingsScreen({ onShowAuth }: SettingsScreenProps) {
               <p className="text-xs text-muted-foreground">Nhận thông báo khi có thời tiết xấu</p>
             </div>
             <Switch
-              checked={notifications}
-              onCheckedChange={handleNotificationsChange}
+              checked={notificationsWeather}
+              onCheckedChange={handleWeatherNotificationChange}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -450,8 +491,8 @@ export function SettingsScreen({ onShowAuth }: SettingsScreenProps) {
               <p className="text-xs text-muted-foreground">Thông báo khi AQI vượt ngưỡng an toàn</p>
             </div>
             <Switch
-              checked={notifications}
-              onCheckedChange={handleNotificationsChange}
+              checked={notificationsAqi}
+              onCheckedChange={handleAqiNotificationChange}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -460,8 +501,8 @@ export function SettingsScreen({ onShowAuth }: SettingsScreenProps) {
               <p className="text-xs text-muted-foreground">Nhận dự báo thời tiết mỗi sáng</p>
             </div>
             <Switch
-              checked={notifications}
-              onCheckedChange={handleNotificationsChange}
+              checked={notificationsDailyForecast}
+              onCheckedChange={handleDailyForecastNotificationChange}
             />
           </div>
         </div>

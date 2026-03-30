@@ -17,7 +17,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const defaultPreferences: UserPreferences = {
   temperatureUnit: 'celsius',
   windSpeedUnit: 'kmh',
-  notifications: true,
+  pressureUnit: 'hpa',
+  notifications: {
+    weather: true,
+    aqi: true,
+    dailyForecast: true,
+  },
   favoriteLocations: ['Hà Nội'],
   theme: 'system'
 };

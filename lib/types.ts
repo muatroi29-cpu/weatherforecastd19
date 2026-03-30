@@ -70,7 +70,12 @@ export interface User {
 export interface UserPreferences {
   temperatureUnit: 'celsius' | 'fahrenheit';
   windSpeedUnit: 'kmh' | 'ms' | 'mph';
-  notifications: boolean;
+  pressureUnit: 'hpa' | 'mmhg';
+  notifications: {
+    weather: boolean;
+    aqi: boolean;
+    dailyForecast: boolean;
+  };
   favoriteLocations: string[];
   theme: 'light' | 'dark' | 'system';
 }
