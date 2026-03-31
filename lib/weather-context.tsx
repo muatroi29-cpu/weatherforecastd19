@@ -3,10 +3,12 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import type { WeatherData, HourlyForecast, DailyForecast } from './types';
 import { mockWeatherData, mockHourlyForecast, mockDailyForecast, popularLocations } from './mock-data';
+import { pm25ToAqi, epaIndexToAqi } from './aqi-utils';
 
 export interface DailyAqiForecast {
   day: string;
   aqi: number;
+  pm25: number;
   trend: 'up' | 'down' | 'stable';
 }
 
@@ -24,14 +26,10 @@ interface WeatherContextType {
 
 const WeatherContext = createContext<WeatherContextType | undefined>(undefined);
 
-const EPA_TO_AQI: Record<number, number> = { 1: 25, 2: 75, 3: 125, 4: 175, 5: 250, 6: 350 };
-
-function epaToAqi(epa: number): number {
-  return EPA_TO_AQI[Math.round(epa)] ?? 50;
-}
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 function getAQILevel(aqi: number): WeatherData['aqiLevel'] {
-  if (aqi <= 50) return 'good';
+  if (aqi <= 50)  return 'good';
   if (aqi <= 100) return 'moderate';
   if (aqi <= 150) return 'unhealthy-sensitive';
   if (aqi <= 200) return 'unhealthy';
@@ -40,7 +38,7 @@ function getAQILevel(aqi: number): WeatherData['aqiLevel'] {
 }
 
 function getAQIDescription(aqi: number): string {
-  if (aqi <= 50) return 'Chất lượng không khí tốt';
+  if (aqi <= 50)  return 'Chất lượng không khí tốt';
   if (aqi <= 100) return 'Chất lượng không khí trung bình';
   if (aqi <= 150) return 'Không tốt cho nhóm nhạy cảm';
   if (aqi <= 200) return 'Chất lượng không khí không tốt';
@@ -76,9 +74,8 @@ function getDayShort(index: number): string {
   if (index === 1) return 'Mai';
   const d = new Date();
   d.setDate(d.getDate() + index);
-  const wd = d.getDay(); // 0=CN,1=T2...6=T7
   const names = ['CN','T2','T3','T4','T5','T6','T7'];
-  return names[wd];
+  return names[d.getDay()];
 }
 
 function getDayFull(index: number): string {
@@ -88,21 +85,58 @@ function getDayFull(index: number): string {
   return d.toLocaleDateString('vi-VN', { weekday: 'long' });
 }
 
+/**
+ * Tính AQI đại diện cho một ngày từ dữ liệu giờ.
+ * Ưu tiên dùng PM2.5 → nếu không có thì dùng EPA index.
+ * Lấy trung bình ban ngày (6h–22h) để phản ánh thực tế sinh hoạt.
+ */
+function calcDailyAqi(hours: any[]): { aqi: number; pm25: number } {
+  const daytime = hours.filter((h: any) => {
+    const hr = new Date(h.time).getHours();
+    return hr >= 6 && hr <= 22;
+  });
+  const src = daytime.length >= 4 ? daytime : hours;
+
+  // PM2.5 path (chuẩn nhất)
+  const pm25Vals = src
+    .map((h: any) => h.air_quality?.pm2_5)
+    .filter((v: any) => typeof v === 'number' && !isNaN(v) && v >= 0);
+
+  if (pm25Vals.length >= 3) {
+    const avg = pm25Vals.reduce((a: number, b: number) => a + b, 0) / pm25Vals.length;
+    return { aqi: pm25ToAqi(avg), pm25: Math.round(avg * 10) / 10 };
+  }
+
+  // EPA fallback
+  const epaVals = src
+    .map((h: any) => h.air_quality?.['us-epa-index'])
+    .filter((v: any) => typeof v === 'number' && !isNaN(v) && v >= 1);
+
+  if (epaVals.length >= 1) {
+    const avgEpa = epaVals.reduce((a: number, b: number) => a + b, 0) / epaVals.length;
+    return { aqi: epaIndexToAqi(Math.round(avgEpa)), pm25: 0 };
+  }
+
+  return { aqi: 0, pm25: 0 };
+}
+
+// ── Mock fallback ─────────────────────────────────────────────────────────
 const mockDailyAqi: DailyAqiForecast[] = [
-  { day: 'Hôm nay', aqi: 85, trend: 'stable' },
-  { day: 'Mai',     aqi: 92, trend: 'up' },
-  { day: 'T3',      aqi: 78, trend: 'down' },
-  { day: 'T4',      aqi: 65, trend: 'down' },
-  { day: 'T5',      aqi: 70, trend: 'up' },
-  { day: 'T6',      aqi: 88, trend: 'up' },
-  { day: 'T7',      aqi: 95, trend: 'up' },
+  { day: 'Hôm nay', aqi: 85,  pm25: 24.2, trend: 'stable' },
+  { day: 'Mai',     aqi: 92,  pm25: 26.8, trend: 'up'     },
+  { day: 'T3',      aqi: 78,  pm25: 21.5, trend: 'down'   },
+  { day: 'T4',      aqi: 65,  pm25: 17.1, trend: 'down'   },
+  { day: 'T5',      aqi: 70,  pm25: 18.9, trend: 'up'     },
+  { day: 'T6',      aqi: 88,  pm25: 25.0, trend: 'up'     },
+  { day: 'T7',      aqi: 95,  pm25: 27.4, trend: 'up'     },
 ];
 
+// ── Provider ──────────────────────────────────────────────────────────────
 export function WeatherProvider({ children }: { children: ReactNode }) {
-  const [currentWeather, setCurrentWeather]   = useState<WeatherData>(mockWeatherData);
-  const [hourlyForecast, setHourlyForecast]   = useState<HourlyForecast[]>(mockHourlyForecast);
-  const [dailyForecast, setDailyForecast]     = useState<DailyForecast[]>(mockDailyForecast);
-  const [dailyAqiForecast, setDailyAqiForecast] = useState<DailyAqiForecast[]>(mockDailyAqi);
+  const [currentWeather, setCurrentWeather]       = useState<WeatherData>(mockWeatherData);
+  const [hourlyForecast, setHourlyForecast]       = useState<HourlyForecast[]>(mockHourlyForecast);
+  const [dailyForecast, setDailyForecast]         = useState<DailyForecast[]>(mockDailyForecast);
+  const [dailyAqiForecast, setDailyAqiForecast]   = useState<DailyAqiForecast[]>(mockDailyAqi);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const [selectedLocation, setSelectedLocationState] = useState(popularLocations[0]);
@@ -117,18 +151,21 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
       const res = await fetch(
         `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${lat},${lon}&days=7&aqi=yes&alerts=no`
       );
-      if (!res.ok) throw new Error('API error');
+      if (!res.ok) throw new Error(`API ${res.status}`);
       const data = await res.json();
 
       const current      = data.current;
-      const forecastDays = data.forecast.forecastday as any[];
+      const forecastDays = data.forecast?.forecastday as any[] ?? [];
 
-      // ── Current AQI ──────────────────────────────────────────
-      const currentEpa = current.air_quality?.['us-epa-index'] ?? 1;
-      const currentAqi = epaToAqi(currentEpa);
+      // ── Current AQI: ưu tiên PM2.5 ──────────────────────────────
+      const currentPm25 = current.air_quality?.pm2_5;
+      const currentEpa  = current.air_quality?.['us-epa-index'] ?? 1;
+      const currentAqi  = (typeof currentPm25 === 'number' && currentPm25 >= 0)
+        ? pm25ToAqi(currentPm25)
+        : epaIndexToAqi(currentEpa);
 
-      // ── Weather data ──────────────────────────────────────────
-      const astro = forecastDays[0].astro;
+      // ── Current weather ──────────────────────────────────────────
+      const astro = forecastDays[0]?.astro ?? {};
       const newWeather: WeatherData = {
         location:       locationName,
         temperature:    Math.round(current.temp_c),
@@ -141,17 +178,17 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
         uvIndex:        Math.round(current.uv),
         condition:      getCondition(current.condition.code, current.is_day),
         description:    current.condition.text,
-        sunrise:        astro.sunrise,
-        sunset:         astro.sunset,
+        sunrise:        astro.sunrise ?? '05:30',
+        sunset:         astro.sunset  ?? '18:30',
         aqi:            currentAqi,
         aqiLevel:       getAQILevel(currentAqi),
         aqiDescription: getAQIDescription(currentAqi),
         coordinates:    { lat, lon },
       };
 
-      // ── Hourly forecast (next 24 h) ───────────────────────────
+      // ── Hourly forecast (next 24 h) ──────────────────────────────
       const curHour    = new Date().getHours();
-      const todayHours = forecastDays[0].hour as any[];
+      const todayHours = (forecastDays[0]?.hour ?? []) as any[];
       const tmrwHours  = (forecastDays[1]?.hour ?? []) as any[];
       const next24     = [...todayHours.slice(curHour), ...tmrwHours].slice(0, 24);
 
@@ -161,35 +198,33 @@ export function WeatherProvider({ children }: { children: ReactNode }) {
         condition:     getCondition(h.condition.code, h.is_day),
         humidity:      h.humidity,
         windSpeed:     Math.round(h.wind_kph),
-        precipitation: h.chance_of_rain,
+        precipitation: h.chance_of_rain ?? 0,
       }));
 
-      // ── 7-day daily forecast ──────────────────────────────────
+      // ── 7-day daily forecast ─────────────────────────────────────
       const newDaily: DailyForecast[] = forecastDays.map((day: any, i: number) => ({
-        date:        new Date(day.date).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit' }),
-        dayName:     getDayFull(i),
-        tempMax:     Math.round(day.day.maxtemp_c),
-        tempMin:     Math.round(day.day.mintemp_c),
-        condition:   getCondition(day.day.condition.code, 1),
-        humidity:    day.day.avghumidity,
-        precipitation: day.day.daily_chance_of_rain,
-        confidence:  Math.max(60, 100 - i * 5),
+        date:          new Date(day.date).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit' }),
+        dayName:       getDayFull(i),
+        tempMax:       Math.round(day.day.maxtemp_c),
+        tempMin:       Math.round(day.day.mintemp_c),
+        condition:     getCondition(day.day.condition.code, 1),
+        humidity:      day.day.avghumidity,
+        precipitation: day.day.daily_chance_of_rain ?? 0,
+        confidence:    Math.max(60, 100 - i * 5),
       }));
 
-      // ── Daily AQI forecast (max EPA per day → AQI) ───────────
-      const dailyAqiValues: number[] = forecastDays.map((day: any) => {
-        const epas: number[] = (day.hour as any[])
-          .map((h: any) => h.air_quality?.['us-epa-index'])
-          .filter((v: any) => typeof v === 'number');
-        return epaToAqi(epas.length ? Math.max(...epas) : 1);
-      });
+      // ── Daily AQI forecast (PM2.5 average per day) ───────────────
+      const aqiPerDay = forecastDays.map((day: any) => calcDailyAqi(day.hour ?? []));
 
-      const newDailyAqi: DailyAqiForecast[] = dailyAqiValues.map((aqi, i) => {
-        const prev = i === 0 ? aqi : dailyAqiValues[i - 1];
+      // Nếu tất cả bằng 0 (API không trả AQI trong forecast), dùng currentAqi + nhỏ biến đổi
+      const hasRealAqi = aqiPerDay.some(d => d.aqi > 0);
+      const newDailyAqi: DailyAqiForecast[] = aqiPerDay.map((d, i) => {
+        const aqi  = hasRealAqi ? (d.aqi > 0 ? d.aqi : currentAqi) : currentAqi;
+        const pm25 = d.pm25 > 0 ? d.pm25 : (typeof currentPm25 === 'number' ? Math.round(currentPm25 * 10) / 10 : 0);
+        const prev = i === 0 ? aqi : aqiPerDay[i - 1].aqi || currentAqi;
         const diff = aqi - prev;
-        const trend: 'up' | 'down' | 'stable' =
-          Math.abs(diff) <= 10 ? 'stable' : diff > 0 ? 'up' : 'down';
-        return { day: getDayShort(i), aqi, trend };
+        const trend: 'up' | 'down' | 'stable' = Math.abs(diff) <= 8 ? 'stable' : diff > 0 ? 'up' : 'down';
+        return { day: getDayShort(i), aqi, pm25, trend };
       });
 
       setCurrentWeather(newWeather);
