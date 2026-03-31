@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useWeather } from "@/lib/weather-context";
 import { WeatherCard, WeatherCardHeader } from "@/components/weather-card";
 import { Map, Wind, Layers, AlertTriangle, Heart, Activity, Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { pm25ToAqi, epaIndexToAqi } from "@/lib/aqi-utils";
 
 const API_KEY = 'ecd27c0bc5cf4eb6a70143329263003';
 
@@ -22,8 +23,6 @@ const HANOI_DISTRICTS = [
   { name: "Quận Bắc Từ Liêm", lat: 21.0680, lon: 105.7450 },
   { name: "Quận Hoàng Mai", lat: 20.9765, lon: 105.8645 },
 ];
-
-const EPA_TO_AQI: Record<number, number> = { 1:25, 2:75, 3:125, 4:175, 5:250, 6:350 };
 
 interface DistrictAqi {
   name:  string;
@@ -55,65 +54,104 @@ function getAQITextColor(aqi: number) {
 function getAQILevel(aqi: number) {
   if (aqi <= 50)  return "Tốt";
   if (aqi <= 100) return "Trung bình";
-  if (aqi <= 150) return "Kém cho nhóm nhạy cảm";
+  if (aqi <= 150) return "Kém (nhóm nhạy cảm)";
   if (aqi <= 200) return "Kém";
   if (aqi <= 300) return "Rất kém";
   return "Nguy hại";
 }
 function getHealthAdvice(aqi: number) {
   if (aqi <= 50)  return "Chất lượng không khí tốt, phù hợp cho mọi hoạt động ngoài trời.";
-  if (aqi <= 100) return "Chất lượng không khí chấp nhận được. Nhóm nhạy cảm nên hạn chế hoạt động kéo dài.";
-  if (aqi <= 150) return "Nhóm nhạy cảm (trẻ em, người già, người có bệnh hô hấp) nên hạn chế ra ngoài.";
+  if (aqi <= 100) return "Chấp nhận được. Nhóm nhạy cảm nên hạn chế hoạt động kéo dài ngoài trời.";
+  if (aqi <= 150) return "Nhóm nhạy cảm (trẻ em, người già, bệnh hô hấp) nên hạn chế ra ngoài.";
   if (aqi <= 200) return "Mọi người nên giảm hoạt động ngoài trời. Đeo khẩu trang khi ra ngoài.";
   if (aqi <= 300) return "Cảnh báo sức khỏe nghiêm trọng. Hạn chế tối đa ra ngoài.";
-  return "Nguy hiểm! Tránh ra ngoài hoàn toàn. Đóng kín cửa sổ.";
+  return "Nguy hiểm! Tránh ra ngoài hoàn toàn. Đóng kín cửa sổ, dùng máy lọc không khí.";
+}
+
+async function fetchDistrictAqi(d: typeof HANOI_DISTRICTS[0]): Promise<DistrictAqi> {
+  const res = await fetch(
+    `https://api.weatherapi.com/v1/current.json?key=${API_KEY}&q=${d.lat},${d.lon}&aqi=yes`
+  );
+  if (!res.ok) throw new Error('fetch failed');
+  const json = await res.json();
+  const aq = json.current?.air_quality ?? {};
+
+  const pm25Val = typeof aq.pm2_5  === 'number' ? aq.pm2_5  : -1;
+  const epaVal  = aq['us-epa-index'] ?? 1;
+
+  // Ưu tiên PM2.5 để tính AQI chính xác nhất
+  const aqi = pm25Val >= 0 ? pm25ToAqi(pm25Val) : epaIndexToAqi(Math.round(epaVal));
+
+  return {
+    name: d.name,
+    aqi,
+    pm25: pm25Val >= 0 ? Math.round(pm25Val * 10) / 10 : 0,
+    pm10: Math.round(aq.pm10  ?? 0),
+    o3:   Math.round(aq.o3    ?? 0),
+    no2:  Math.round(aq.no2   ?? 0),
+    so2:  Math.round(aq.so2   ?? 0),
+    co:   parseFloat((aq.co   ?? 0).toFixed(1)),
+  };
 }
 
 export function HeatmapScreen() {
   const { currentWeather } = useWeather();
-  const [districtData, setDistrictData]       = useState<DistrictAqi[]>([]);
+  const [districtData, setDistrictData]         = useState<DistrictAqi[]>([]);
   const [selectedDistrict, setSelectedDistrict] = useState<DistrictAqi | null>(null);
-  const [loading, setLoading]                 = useState(true);
-  const [lastUpdated, setLastUpdated]         = useState<Date | null>(null);
+  const [loading, setLoading]                   = useState(true);
+  const [lastUpdated, setLastUpdated]           = useState<Date | null>(null);
+  const [fetchError, setFetchError]             = useState<string | null>(null);
 
-  const fetchAllDistricts = async () => {
+  const fetchAllDistricts = useCallback(async () => {
     setLoading(true);
+    setFetchError(null);
+    const results: DistrictAqi[] = [];
+
+    // Fetch theo batch 4 để tránh rate-limit
+    const BATCH = 4;
     try {
-      const results = await Promise.all(
-        HANOI_DISTRICTS.map(async (d) => {
-          const res = await fetch(
-            `https://api.weatherapi.com/v1/current.json?key=${API_KEY}&q=${d.lat},${d.lon}&aqi=yes`
-          );
-          if (!res.ok) throw new Error('fetch failed');
-          const json = await res.json();
-          const aq   = json.current?.air_quality ?? {};
-          const epa  = aq['us-epa-index'] ?? 1;
-          return {
-            name: d.name,
-            aqi:  EPA_TO_AQI[Math.round(epa)] ?? 50,
-            pm25: Math.round(aq.pm2_5   ?? 0),
-            pm10: Math.round(aq.pm10    ?? 0),
-            o3:   Math.round(aq.o3      ?? 0),
-            no2:  Math.round(aq.no2     ?? 0),
-            so2:  Math.round(aq.so2     ?? 0),
-            co:   parseFloat((aq.co     ?? 0).toFixed(1)),
-          } as DistrictAqi;
-        })
-      );
+      for (let i = 0; i < HANOI_DISTRICTS.length; i += BATCH) {
+        const batch = HANOI_DISTRICTS.slice(i, i + BATCH);
+        const batchResults = await Promise.allSettled(batch.map(fetchDistrictAqi));
+
+        batchResults.forEach((r, idx) => {
+          if (r.status === 'fulfilled') {
+            results.push(r.value);
+          } else {
+            // Nếu 1 quận thất bại, giữ giá trị cũ hoặc placeholder
+            const d = batch[idx];
+            const existing = districtData.find(x => x.name === d.name);
+            if (existing) results.push(existing);
+            else results.push({ name: d.name, aqi: 0, pm25: 0, pm10: 0, o3: 0, no2: 0, so2: 0, co: 0 });
+          }
+        });
+
+        // Delay nhỏ giữa các batch để tránh throttle
+        if (i + BATCH < HANOI_DISTRICTS.length) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
+
       setDistrictData(results);
       setLastUpdated(new Date());
     } catch (err) {
       console.error('District AQI fetch error:', err);
+      setFetchError('Không thể tải dữ liệu một số quận. Đang hiển thị dữ liệu một phần.');
+      if (results.length > 0) setDistrictData(results);
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchAllDistricts();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const sortedDistricts = [...districtData].sort((a, b) => b.aqi - a.aqi);
+  const sortedDistricts = [...districtData]
+    .filter(d => d.aqi > 0)
+    .sort((a, b) => b.aqi - a.aqi);
+
+  const validData = districtData.filter(d => d.aqi > 0);
 
   return (
     <div className="space-y-4 pb-24">
@@ -126,7 +164,7 @@ export function HeatmapScreen() {
           <h1 className="text-xl font-bold">Bản đồ chất lượng không khí</h1>
           <p className="text-sm text-muted-foreground">
             {lastUpdated
-              ? `Cập nhật lúc ${lastUpdated.toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' })}`
+              ? `Cập nhật lúc ${lastUpdated.toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' })} · AQI từ PM2.5 thực tế`
               : 'Đang tải dữ liệu thời gian thực...'}
           </p>
         </div>
@@ -138,6 +176,12 @@ export function HeatmapScreen() {
           <RefreshCw size={18} className={cn("text-muted-foreground", loading && "animate-spin")} />
         </button>
       </div>
+
+      {fetchError && (
+        <div className="p-3 rounded-xl bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 text-sm">
+          {fetchError}
+        </div>
+      )}
 
       {/* AQI Map Grid */}
       <WeatherCard className="relative overflow-hidden">
@@ -152,35 +196,53 @@ export function HeatmapScreen() {
           <>
             <div className="relative h-72 bg-gradient-to-b from-muted/30 to-muted/50 rounded-2xl overflow-hidden p-2">
               <div className="grid grid-cols-4 grid-rows-3 gap-1.5 h-full">
-                {districtData.map((d) => (
-                  <button
-                    key={d.name}
-                    onClick={() => setSelectedDistrict(d)}
-                    className={cn(
-                      "relative rounded-xl flex flex-col items-center justify-center p-2 transition-all hover:scale-105 cursor-pointer",
-                      getAQIBgColor(d.aqi),
-                      selectedDistrict?.name === d.name && "ring-2 ring-white ring-offset-2 ring-offset-background"
-                    )}
-                  >
-                    <span className="text-[10px] font-medium text-white drop-shadow-md text-center leading-tight">
-                      {d.name.replace("Quận ", "Q.")}
-                    </span>
-                    <span className="text-lg font-bold text-white drop-shadow-md">{d.aqi}</span>
-                  </button>
-                ))}
+                {HANOI_DISTRICTS.map((district) => {
+                  const d = districtData.find(x => x.name === district.name);
+                  const aqi = d?.aqi ?? 0;
+                  const isSelected = selectedDistrict?.name === district.name;
+                  return (
+                    <button
+                      key={district.name}
+                      onClick={() => d && setSelectedDistrict(d)}
+                      disabled={!d || aqi === 0}
+                      className={cn(
+                        "relative rounded-xl flex flex-col items-center justify-center p-1.5 transition-all",
+                        aqi > 0 ? `${getAQIBgColor(aqi)} hover:scale-105 cursor-pointer` : "bg-muted/40 cursor-wait",
+                        isSelected && "ring-2 ring-white ring-offset-2 ring-offset-background scale-105"
+                      )}
+                    >
+                      <span className="text-[10px] font-medium text-white drop-shadow-md text-center leading-tight">
+                        {district.name.replace("Quận ", "Q.")}
+                      </span>
+                      {aqi > 0 ? (
+                        <span className="text-base font-bold text-white drop-shadow-md">{aqi}</span>
+                      ) : (
+                        <Loader2 size={14} className="text-white/70 animate-spin mt-0.5" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Legend */}
-            <div className="mt-4 flex items-center justify-center gap-2">
+            <div className="mt-3 flex items-center justify-center gap-2">
               <span className="text-xs text-muted-foreground">Tốt</span>
               <div className="flex gap-1">
                 {["bg-green-500","bg-yellow-500","bg-orange-500","bg-red-500","bg-purple-500","bg-rose-900"].map(c => (
-                  <span key={c} className={`w-6 h-3 rounded ${c}`} />
+                  <span key={c} className={`w-5 h-3 rounded ${c}`} />
                 ))}
               </div>
               <span className="text-xs text-muted-foreground">Nguy hại</span>
             </div>
+
+            {validData.length > 0 && (
+              <p className="text-center text-xs text-muted-foreground mt-1">
+                AQI trung bình: <strong>{Math.round(validData.reduce((s, d) => s + d.aqi, 0) / validData.length)}</strong>
+                {' '}· PM2.5 trung bình:{' '}
+                <strong>{(validData.filter(d => d.pm25 > 0).reduce((s, d) => s + d.pm25, 0) / (validData.filter(d => d.pm25 > 0).length || 1)).toFixed(1)} µg/m³</strong>
+              </p>
+            )}
           </>
         )}
       </WeatherCard>
@@ -196,26 +258,30 @@ export function HeatmapScreen() {
               </p>
             </div>
             <div className={cn(
-              "w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-2xl",
+              "w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-white",
               getAQIBgColor(selectedDistrict.aqi)
             )}>
-              {selectedDistrict.aqi}
+              <span className="font-bold text-2xl leading-none">{selectedDistrict.aqi}</span>
+              <span className="text-[9px] opacity-80 mt-0.5">AQI</span>
             </div>
           </div>
 
           {/* Pollutant Details */}
           <div className="grid grid-cols-3 gap-2 mb-4">
             {[
-              { label: "PM2.5", value: selectedDistrict.pm25, unit: "µg/m³" },
-              { label: "PM10",  value: selectedDistrict.pm10, unit: "µg/m³" },
-              { label: "O₃",    value: selectedDistrict.o3,   unit: "µg/m³" },
-              { label: "NO₂",   value: selectedDistrict.no2,  unit: "µg/m³" },
-              { label: "SO₂",   value: selectedDistrict.so2,  unit: "µg/m³" },
-              { label: "CO",    value: selectedDistrict.co,   unit: "µg/m³" },
-            ].map(({ label, value, unit }) => (
-              <div key={label} className="bg-muted/30 rounded-xl p-3 text-center">
+              { label: "PM2.5", value: selectedDistrict.pm25, unit: "µg/m³", highlight: true },
+              { label: "PM10",  value: selectedDistrict.pm10, unit: "µg/m³", highlight: false },
+              { label: "O₃",    value: selectedDistrict.o3,   unit: "µg/m³", highlight: false },
+              { label: "NO₂",   value: selectedDistrict.no2,  unit: "µg/m³", highlight: false },
+              { label: "SO₂",   value: selectedDistrict.so2,  unit: "µg/m³", highlight: false },
+              { label: "CO",    value: selectedDistrict.co,   unit: "µg/m³", highlight: false },
+            ].map(({ label, value, unit, highlight }) => (
+              <div key={label} className={cn(
+                "rounded-xl p-3 text-center",
+                highlight ? "bg-primary/10" : "bg-muted/30"
+              )}>
                 <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="font-bold text-lg">{value}</p>
+                <p className={cn("font-bold text-lg", highlight && "text-primary")}>{value}</p>
                 <p className="text-[10px] text-muted-foreground">{unit}</p>
               </div>
             ))}
@@ -248,6 +314,8 @@ export function HeatmapScreen() {
           <div className="flex items-center justify-center py-8">
             <Loader2 className="animate-spin text-primary" size={24} />
           </div>
+        ) : sortedDistricts.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">Đang tải dữ liệu...</p>
         ) : (
           <div className="space-y-2">
             {sortedDistricts.map((d, index) => (
@@ -272,6 +340,7 @@ export function HeatmapScreen() {
                     <span className="font-medium text-sm">{d.name}</span>
                     <p className={cn("text-xs", getAQITextColor(d.aqi))}>
                       {getAQILevel(d.aqi)}
+                      {d.pm25 > 0 && <span className="text-muted-foreground"> · PM2.5: {d.pm25} µg/m³</span>}
                     </p>
                   </div>
                 </div>
@@ -287,15 +356,15 @@ export function HeatmapScreen() {
 
       {/* AQI Scale Info */}
       <WeatherCard>
-        <WeatherCardHeader title="Thông tin về chỉ số AQI" icon={<AlertTriangle size={16} />} />
-        <div className="space-y-3">
+        <WeatherCardHeader title="Thang AQI & ý nghĩa" icon={<AlertTriangle size={16} />} />
+        <div className="space-y-2">
           {[
-            { range: "0 – 50",   level: "Tốt",                          desc: "Chất lượng không khí tốt, an toàn cho mọi người",              color: "bg-green-500" },
-            { range: "51 – 100", level: "Trung bình",                    desc: "Chấp nhận được, nhóm nhạy cảm cần lưu ý",                    color: "bg-yellow-500" },
-            { range: "101 – 150",level: "Kém cho nhóm nhạy cảm",         desc: "Người có bệnh hô hấp, tim mạch nên hạn chế ra ngoài",        color: "bg-orange-500" },
-            { range: "151 – 200",level: "Kém",                           desc: "Mọi người có thể bị ảnh hưởng sức khỏe",                     color: "bg-red-500" },
-            { range: "201 – 300",level: "Rất kém",                       desc: "Cảnh báo sức khỏe khẩn cấp",                                 color: "bg-purple-500" },
-            { range: "300+",     level: "Nguy hại",                      desc: "Cảnh báo khẩn cấp, tránh ra ngoài hoàn toàn",                color: "bg-rose-900" },
+            { range: "0–50",   level: "Tốt",                       desc: "An toàn cho mọi người",                           color: "bg-green-500" },
+            { range: "51–100", level: "Trung bình",                 desc: "Nhóm nhạy cảm nên chú ý",                       color: "bg-yellow-500" },
+            { range: "101–150",level: "Kém (nhóm nhạy cảm)",        desc: "Trẻ em, người già nên hạn chế ra ngoài",        color: "bg-orange-500" },
+            { range: "151–200",level: "Kém",                        desc: "Mọi người có thể bị ảnh hưởng",                 color: "bg-red-500" },
+            { range: "201–300",level: "Rất kém",                    desc: "Cảnh báo sức khỏe khẩn cấp",                    color: "bg-purple-500" },
+            { range: "300+",   level: "Nguy hại",                   desc: "Nguy hiểm – tránh ra ngoài hoàn toàn",          color: "bg-rose-900" },
           ].map(({ range, level, desc, color }) => (
             <div key={range} className="flex items-center gap-3 p-2 rounded-lg">
               <span className={`w-4 h-4 rounded flex-shrink-0 ${color}`} />
@@ -306,6 +375,9 @@ export function HeatmapScreen() {
             </div>
           ))}
         </div>
+        <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border/50">
+          * AQI tính theo chuẩn US EPA từ nồng độ PM2.5 thực tế. Dữ liệu theo thời gian thực từ WeatherAPI.
+        </p>
       </WeatherCard>
     </div>
   );
