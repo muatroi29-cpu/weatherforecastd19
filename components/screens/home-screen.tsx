@@ -20,14 +20,16 @@ import {
   TrendingDown,
   Minus,
   Calendar,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { DailyAqiForecast } from "@/lib/weather-context";
 
 export function HomeScreen() {
   const { currentWeather, hourlyForecast, dailyAqiForecast, isLoading, refreshWeather } = useWeather();
   const { user } = useAuth();
 
-  // ── Unit converters ────────────────────────────────────────────
+  // ── Unit converters ──────────────────────────────────────────────────────
   const convertTemp = (c: number) =>
     user?.preferences.temperatureUnit === 'fahrenheit' ? Math.round(c * 9 / 5 + 32) : c;
   const tempUnit = () => user?.preferences.temperatureUnit === 'fahrenheit' ? '°F' : '°C';
@@ -48,11 +50,14 @@ export function HomeScreen() {
   };
 
   const convertPressure = (hpa: number) =>
-    user?.preferences.pressureUnit === 'mmhg' ? Math.round(hpa * 0.75006).toString() : hpa.toString();
-  const pressureUnit = () => user?.preferences.pressureUnit === 'mmhg' ? 'mmHg' : 'hPa';
+    user?.preferences.pressureUnit === 'mmhg'
+      ? Math.round(hpa * 0.75006).toString()
+      : hpa.toString();
+  const pressureUnit = () =>
+    user?.preferences.pressureUnit === 'mmhg' ? 'mmHg' : 'hPa';
 
-  // ── AQI helpers ────────────────────────────────────────────────
-  const getAQIBg   = (aqi: number) => {
+  // ── AQI helpers ──────────────────────────────────────────────────────────
+  const getAQIBg = (aqi: number) => {
     if (aqi <= 50)  return "bg-green-500";
     if (aqi <= 100) return "bg-yellow-500";
     if (aqi <= 150) return "bg-orange-500";
@@ -78,14 +83,18 @@ export function HomeScreen() {
   };
 
   const TrendIcon = ({ trend }: { trend: 'up' | 'down' | 'stable' }) => {
-    if (trend === 'up')   return <TrendingUp   size={12} className="text-red-500" />;
-    if (trend === 'down') return <TrendingDown size={12} className="text-green-500" />;
-    return <Minus size={12} className="text-muted-foreground" />;
+    if (trend === 'up')   return <TrendingUp   size={11} className="text-red-500" />;
+    if (trend === 'down') return <TrendingDown size={11} className="text-green-500" />;
+    return <Minus size={11} className="text-muted-foreground" />;
   };
 
-  // Trend summary text for the AQI forecast card
-  const bestDay  = dailyAqiForecast.reduce((a, b) => a.aqi < b.aqi ? a : b, dailyAqiForecast[0]);
-  const worstDay = dailyAqiForecast.reduce((a, b) => a.aqi > b.aqi ? a : b, dailyAqiForecast[0]);
+  const bestDay  = dailyAqiForecast.length > 0
+    ? dailyAqiForecast.reduce((a, b) => a.aqi < b.aqi ? a : b)
+    : null;
+  const worstDay = dailyAqiForecast.length > 0
+    ? dailyAqiForecast.reduce((a, b) => a.aqi > b.aqi ? a : b)
+    : null;
+  const allEstimated = dailyAqiForecast.every(d => !d.isReal);
 
   return (
     <div className="space-y-4 pb-24">
@@ -164,63 +173,100 @@ export function HomeScreen() {
         </div>
       </WeatherCard>
 
-      {/* ── AQI 7-day Forecast (real data) ── */}
+      {/* ── AQI 7-day Forecast ── */}
       <WeatherCard>
-        <WeatherCardHeader title="Dự báo chất lượng không khí 7 ngày" icon={<Calendar size={16} />} />
-        <p className="text-sm text-muted-foreground mb-4">
-          Chỉ số AQI dự báo tại {currentWeather.location}
-        </p>
+        <WeatherCardHeader
+          title="Dự báo chất lượng không khí 7 ngày"
+          icon={<Calendar size={16} />}
+        />
 
-        <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
-          {dailyAqiForecast.map((item, i) => (
-            <div
-              key={i}
-              className={cn(
-                "flex flex-col items-center gap-2 min-w-[70px] py-3 px-3 rounded-2xl transition-colors",
-                i === 0 ? "bg-primary/10 ring-1 ring-primary/30" : "bg-muted/30"
-              )}
-            >
-              <span className="text-xs font-medium text-muted-foreground">{item.day}</span>
-              <div className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm",
-                getAQIBg(item.aqi)
-              )}>
-                {item.aqi}
-              </div>
-              <div className="flex items-center gap-1">
-                <TrendIcon trend={item.trend} />
-                <span className={cn("text-xs font-medium", getAQIText(item.aqi))}>
-                  {getAQILabel(item.aqi)}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Summary */}
-        <div className="mt-4 p-3 rounded-xl bg-muted/30">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
-              <Wind size={16} className="text-yellow-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Nhận xét xu hướng</p>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                {bestDay && worstDay ? (
-                  <>
-                    Chất lượng không khí tốt nhất vào <strong>{bestDay.day}</strong> (AQI&nbsp;{bestDay.aqi}).
-                    {worstDay.day !== bestDay.day && (
-                      <> Xấu nhất vào <strong>{worstDay.day}</strong> (AQI&nbsp;{worstDay.aqi}).{' '}</>
-                    )}
-                    {currentWeather.aqi > 100
-                      ? 'Nhóm nhạy cảm nên theo dõi và hạn chế ra ngoài những ngày chỉ số cao.'
-                      : 'Nhìn chung tuần này không khí ở mức chấp nhận được.'}
-                  </>
-                ) : 'Đang cập nhật dữ liệu dự báo...'}
-              </p>
-            </div>
+        {/* Loading state */}
+        {isLoading && dailyAqiForecast.length === 0 && (
+          <div className="flex items-center justify-center gap-2 py-6">
+            <Loader2 size={18} className="animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Đang tải dữ liệu AQI...</p>
           </div>
-        </div>
+        )}
+
+        {/* Empty state (chờ fetch) */}
+        {!isLoading && dailyAqiForecast.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-6">
+            Nhấn làm mới để tải dữ liệu
+          </p>
+        )}
+
+        {/* Data */}
+        {dailyAqiForecast.length > 0 && (
+          <>
+            {/* Badge: real vs estimated */}
+            {allEstimated && (
+              <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />
+                Dự báo ước tính từ PM2.5 hiện tại + thời tiết (API không cung cấp AQI forecast)
+              </p>
+            )}
+
+            <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+              {dailyAqiForecast.map((item, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 min-w-[70px] py-3 px-2 rounded-2xl transition-colors",
+                    i === 0 ? "bg-primary/10 ring-1 ring-primary/30" : "bg-muted/30"
+                  )}
+                >
+                  <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">{item.day}</span>
+                  <div className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm",
+                    getAQIBg(item.aqi)
+                  )}>
+                    {item.aqi}
+                  </div>
+                  <div className="flex items-center gap-0.5">
+                    <TrendIcon trend={item.trend} />
+                    <span className={cn("text-[10px] font-medium", getAQIText(item.aqi))}>
+                      {getAQILabel(item.aqi)}
+                    </span>
+                  </div>
+                  {/* Hiển thị PM2.5 nếu có data thực */}
+                  {item.pm25 > 0 && (
+                    <span className="text-[9px] text-muted-foreground">{item.pm25}µg</span>
+                  )}
+                  {/* Dot nhỏ: xanh = data thực, vàng = ước tính */}
+                  <span className={cn(
+                    "w-1.5 h-1.5 rounded-full",
+                    item.isReal ? "bg-green-400" : "bg-yellow-400"
+                  )} title={item.isReal ? 'Dữ liệu thực' : 'Ước tính'} />
+                </div>
+              ))}
+            </div>
+
+            {/* Summary */}
+            <div className="mt-4 p-3 rounded-xl bg-muted/30">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                  <Wind size={16} className="text-yellow-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Nhận xét xu hướng</p>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    {bestDay && worstDay ? (
+                      <>
+                        Không khí tốt nhất vào <strong>{bestDay.day}</strong> (AQI {bestDay.aqi}).
+                        {worstDay.day !== bestDay.day && (
+                          <> Xấu nhất vào <strong>{worstDay.day}</strong> (AQI {worstDay.aqi}).{' '}</>
+                        )}
+                        {currentWeather.aqi > 100
+                          ? 'Nhóm nhạy cảm nên hạn chế ra ngoài những ngày chỉ số cao.'
+                          : 'Nhìn chung tuần này không khí ở mức chấp nhận được.'}
+                      </>
+                    ) : 'Đang cập nhật dữ liệu...'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </WeatherCard>
 
       {/* ── Hourly Forecast ── */}
