@@ -94,7 +94,7 @@ function aqiTextColor(aqi: number) {
 function aqiLabel(aqi: number) {
   if (aqi <= 50)  return "Tốt";
   if (aqi <= 100) return "Trung bình";
-  if (aqi <= 150) return "Kém (NC)";
+  if (aqi <= 150) return "Hơi kém";
   if (aqi <= 200) return "Kém";
   if (aqi <= 300) return "Rất kém";
   return "Nguy hại";
@@ -113,7 +113,7 @@ function aqiAdvice(aqi: number) {
   if (aqi <= 150) return "Trẻ em, người già, người bệnh hô hấp / tim mạch nên hạn chế ra ngoài.";
   if (aqi <= 200) return "Mọi người nên giảm hoạt động ngoài trời. Đeo khẩu trang N95 khi cần ra ngoài.";
   if (aqi <= 300) return "Cảnh báo sức khỏe nghiêm trọng. Hạn chế tối đa ra ngoài.";
-  return "Nguy hiểm! Ở trong nhà, đóng kín cửa, sử dụng máy lọc không khí.";
+  return "Nguy hiểm! Nên ở trong nhà, đóng kín cửa.";
 }
 
 const get = (iaqi: Record<string, { v: number }>, key: string): number | null =>
